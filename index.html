@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkRunner</title>
+<style>
+  body {
+    margin: 0;
+    background: #2b2b2b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: sans-serif;
+    user-select: none;
+  }
+  canvas {
+    background: #fff;
+    border: 3px solid #333;
+    touch-action: manipulation;
+    max-width: 95vw;
+    height: auto;
+  }
+  #score {
+    font-size: 20px;
+    margin-bottom: 8px;
+    color: #eee;
+  }
+  #msg {
+    font-size: 15px;
+    color: #ccc;
+    margin-top: 8px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div id="score">Puntos: 0</div>
+<canvas id="game" width="800" height="450"></canvas>
+<div id="msg">Toca la pantalla o presiona ESPACIO para empezar</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const msgEl = document.getElementById("msg");
+
+const CW = canvas.width;
+const CH = canvas.height;
+
+// --- Cargar imágenes ---
+function loadImg(src) {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+const bgImg = loadImg("background.jpg");
+const titleImg = loadImg("title.jpg");
+const gameoverImg = loadImg("gameover.jpg");
+const spriteImg = loadImg("sprite.jpg");
+
+const obstacleImgs = [
+  loadImg("obs_papeles.png"),
+  loadImg("obs_taza.png"),
+  loadImg("obs_telefono.png")
+];
+
+let allLoaded = false;
+let loadedCount = 0;
+const totalImgs = 7;
+[bgImg, titleImg, gameoverImg, spriteImg, ...obstacleImgs].forEach(img => {
+  img.onload = () => {
+    loadedCount++;
+    if (loadedCount === totalImgs) {
+      allLoaded = true;
+      draw();
+    }
+  };
+});
+
+// --- Sprite del personaje (6 frames) ---
+const FRAME_COUNT = 6;
+const FRAME_W = 456;
+const FRAME_H = 912;
+
+const DRAW_W = 55;
+const DRAW_H = 110;
+
+let currentFrame = 0;
+let frameTimer = 0;
+const frameInterval = 6;
+
+// Piso: donde está parado el personaje
+const groundY = 340; // "y" superior del personaje cuando está parado
+
+const player = {
+  x: 90,
+  y: groundY,
+  vy: 0,
+  jumping: false
+};
+
+const gravity = 0.9;
+const jumpForce = -16;
+
+// --- Obstáculos ---
+// cada obstáculo tiene su propio tamaño de dibujo (se calcula al elegirlo)
+function pickObstacleSize(img) {
+  const targetH = 55;
+  const scale = targetH / img.naturalHeight;
+  return { w: img.naturalWidth * scale, h: targetH };
+}
+
+let obstacle = {
+  imgIndex: 0,
+  x: CW + 200,
+  y: 0,
+  w: 50,
+  h: 50
+};
+
+function resetObstacle(fromRight) {
+  obstacle.imgIndex = Math.floor(Math.random() * obstacleImgs.length);
+  const size = pickObstacleSize(obstacleImgs[obstacle.imgIndex]);
+  obstacle.w = size.w;
+  obstacle.h = size.h;
+  obstacle.x = fromRight ? CW + Math.random() * 200 : CW + 100;
+  obstacle.y = groundY + DRAW_H - obstacle.h; // apoyado en el piso
+}
+
+let speed = 6;
+let score = 0;
+let gameOver = false;
+let started = false;
+
+function jump() {
+  if (!started) {
+    started = true;
+    resetObstacle(false);
+    msgEl.textContent = "Toca o presiona ESPACIO para saltar";
+    loop();
+    return;
+  }
+  if (gameOver) {
+    resetGame();
+    return;
+  }
+  if (!player.jumping) {
+    player.vy = jumpForce;
+    player.jumping = true;
+  }
+}
+
+function resetGame() {
+  player.y = groundY;
+  player.vy = 0;
+  player.jumping = false;
+  resetObstacle(false);
+  speed = 6;
+  score = 0;
+  gameOver = false;
+  started = true;
+  msgEl.textContent = "Toca o presiona ESPACIO para saltar";
+  loop();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    jump();
+  }
+});
+canvas.addEventListener("mousedown", jump);
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  jump();
+});
+
+function update() {
+  player.vy += gravity;
+  player.y += player.vy;
+  if (player.y > groundY) {
+    player.y = groundY;
+    player.vy = 0;
+    player.jumping = false;
+  }
+
+  if (!player.jumping) {
+    frameTimer++;
+    if (frameTimer >= frameInterval) {
+      frameTimer = 0;
+      currentFrame = (currentFrame + 1) % FRAME_COUNT;
+    }
+  }
+
+  obstacle.x -= speed;
+  if (obstacle.x + obstacle.w < 0) {
+    resetObstacle(true);
+    score++;
+    speed += 0.2;
+  }
+
+  // Colisión (hitbox algo más chica que el sprite)
+  const px = player.x + 12;
+  const pw = DRAW_W - 24;
+  const py = player.y + 15;
+  const ph = DRAW_H - 15;
+
+  const ox = obstacle.x + obstacle.w * 0.15;
+  const ow = obstacle.w * 0.7;
+  const oy = obstacle.y + obstacle.h * 0.15;
+  const oh = obstacle.h * 0.7;
+
+  if (
+    px < ox + ow &&
+    px + pw > ox &&
+    py < oy + oh &&
+    py + ph > oy
+  ) {
+    gameOver = true;
+    msgEl.textContent = "¡Perdiste! Toca o presiona ESPACIO para reiniciar";
+  }
+
+  scoreEl.textContent = "Puntos: " + score;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, CW, CH);
+
+  if (!allLoaded) return;
+
+  if (!started) {
+    ctx.drawImage(titleImg, 0, 0, CW, CH);
+    return;
+  }
+
+  if (gameOver) {
+    ctx.drawImage(gameoverImg, 0, 0, CW, CH);
+    return;
+  }
+
+  // Fondo
+  ctx.drawImage(bgImg, 0, 0, CW, CH);
+
+  // Personaje
+  const frameToShow = player.jumping ? 0 : currentFrame;
+  ctx.drawImage(
+    spriteImg,
+    frameToShow * FRAME_W, 0, FRAME_W, FRAME_H,
+    player.x, player.y, DRAW_W, DRAW_H
+  );
+
+  // Obstáculo
+  const obsImg = obstacleImgs[obstacle.imgIndex];
+  ctx.drawImage(obsImg, obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+}
+
+function loop() {
+  if (!started || gameOver) {
+    draw();
+    return;
+  }
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// dibujar pantalla de título en cuanto cargue todo
+const checkReady = setInterval(() => {
+  if (allLoaded) {
+    draw();
+    clearInterval(checkReady);
+  }
+}, 50);
+</script>
+
+</body>
+</html>
