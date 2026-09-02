@@ -175,31 +175,31 @@ const FRAME_COUNT = 6;
 const FRAME_W = 456;
 const FRAME_H = 912;
 
-const DRAW_W = 65;
-const DRAW_H = 130;
+const DRAW_W = 90;
+const DRAW_H = 180;
 
 let currentFrame = 0;
 let frameTimer = 0;
 const frameInterval = 6;
 
 // Línea de piso: donde apoyan los pies (personaje y obstáculos)
-const FEET_Y = 320;
+const FEET_Y = 420;
 const groundY = FEET_Y - DRAW_H; // "y" superior del personaje cuando está parado
 
 const player = {
-  x: 100,
+  x: 110,
   y: groundY,
   vy: 0,
   jumping: false
 };
 
 const gravity = 0.9;
-const jumpForce = -19;
+const jumpForce = -23;
 
 // --- Obstáculos ---
 // cada obstáculo tiene su propio tamaño de dibujo (se calcula al elegirlo)
 function pickObstacleSize(img) {
-  const targetH = 70;
+  const targetH = 95;
   const scale = targetH / img.naturalHeight;
   return { w: img.naturalWidth * scale, h: targetH };
 }
@@ -304,11 +304,11 @@ function update() {
     speed = Math.min(speed + 0.35, 16); // se acelera hasta un tope jugable
   }
 
-  // Colisión (hitbox algo más chica que el sprite)
-  const px = player.x + 12;
-  const pw = DRAW_W - 24;
-  const py = player.y + 15;
-  const ph = DRAW_H - 15;
+  // Colisión (hitbox algo más chica que el sprite, en proporción)
+  const px = player.x + DRAW_W * 0.2;
+  const pw = DRAW_W * 0.6;
+  const py = player.y + DRAW_H * 0.12;
+  const ph = DRAW_H * 0.88;
 
   const ox = obstacle.x + obstacle.w * 0.15;
   const ow = obstacle.w * 0.7;
